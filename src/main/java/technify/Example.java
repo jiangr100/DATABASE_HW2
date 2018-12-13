@@ -194,7 +194,6 @@ public class Example {
         Connection connection = DBConnector.getConnection();
         PreparedStatement pstmt = null;
         try {
-            PreparedStatement exist = connection.p
             pstmt = connection.prepareStatement("INSERT INTO hello_world" +
                     " VALUES (?, ?), (?, ?)");
             pstmt.setInt(1,1);
