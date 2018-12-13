@@ -6,6 +6,7 @@ import technify.data.DBConnector;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 
@@ -136,30 +137,187 @@ public class Solution {
 
 
     public static ReturnValue addUser(User user) {
+        if (user.getId() <= 0 || user.getName() == null ||
+            user.getCountry() == null) {
+            return ReturnValue.BAD_PARAMS;
+        }
+        if (getUserProfile(user.getId()) != User.badUser()) {
+            return ReturnValue.BAD_PARAMS;
+        }
         Connection connection = DBConnector.getConnection();
-        PreparedStatement statement =
-        return null;
+        PreparedStatement pstmt = null;
+        try {
+            pstmt = connection.prepareStatement("INSERT INTO Users" +
+                    " VALUES (?, ?, ?, ?)" );
+            pstmt.setInt(1,user.getId());
+            pstmt.setString(2, user.getName());
+            pstmt.setString(3,user.getCountry());
+            pstmt.setBoolean(4,user.getPremium());
 
+
+            pstmt.execute();
+            return ReturnValue.OK;
+
+        } catch (SQLException e) {
+            return ReturnValue.ERROR;
+        }
+        finally {
+            try {
+                pstmt.close();
+            } catch (SQLException e) {
+                return ReturnValue.ERROR;
+            }
+            try {
+                connection.close();
+            } catch (SQLException e) {
+                return ReturnValue.ERROR;
+            }
+        }
     }
 
     public static User getUserProfile(Integer userId) {
+        Connection connection = DBConnector.getConnection();
+        PreparedStatement pstmt = null;
+        try {
+            pstmt = connection.prepareStatement(
+                    "SELECT * FROM Users " +
+                        "WHERE id = ?");
+            pstmt.setInt(1, userId);
 
+            ResultSet results = pstmt.executeQuery();
+            DBConnector.printResults(results);
+            if (!results.next()) {
+                results.close();
+                return User.badUser();
+            }
+            User cur(results.getInt(0),
+                    results.getString(1),
+                    results.getString(2),
+                    results.getBoolean(3));
+            results.close();
+            return cur;
+
+        } catch (SQLException e) {
+            return User.badUser();
+        }
+        finally {
+            try {
+                pstmt.close();
+            } catch (SQLException e) {
+                return User.badUser();
+            }
+            try {
+                connection.close();
+            } catch (SQLException e) {
+                return User.badUser();
+            }
+        }
         return null;
     }
 
     public static ReturnValue deleteUser(User user)
     {
+        Connection connection = DBConnector.getConnection();
+        PreparedStatement pstst = null;
+        try {
+            pstst = connection.prepareStatement(
+                    "DELETE FROM Users " +
+
+                            "where id = ?");
+            pstst.setInt(1, user.getId());
+
+            int affectedRows = pstst.executeUpdate();
+            System.out.println("deleted " + affectedRows + " rows");
+        } catch (SQLException e) {
+
+        }
+        finally {
+            try {
+                pstst.close();
+            } catch (SQLException e) {
+                //e.printStackTrace()();
+            }
+            try {
+                connection.close();
+            } catch (SQLException e) {
+                //e.printStackTrace()();
+            }
+        }
         return null;
     }
 
     public static ReturnValue updateUserPremium(Integer userId)
     {
-        return null;
+        User cur = getUserProfile(userId);
+        if (cur.getPremium()) {
+            return ReturnValue.ALREADY_EXISTS;
+        }
+        if (cur == User.badUser()) {
+            return ReturnValue.NOT_EXISTS;
+        }
+        Connection connection = DBConnector.getConnection();
+        PreparedStatement pstmt = null;
+        try {
+            pstmt = connection.prepareStatement(
+                    "UPDATE Users " +
+                            "SET premium = ? " +
+                            "where id = ?");
+            pstmt.setBoolean(1,1);
+            pstmt.setInt(1, userId);
+            int affectedRows = pstmt.executeUpdate();
+            System.out.println("changed " + affectedRows + " rows");
+        } catch (SQLException e) {
+            return ReturnValue.ERROR;
+        }
+        finally {
+            try {
+                pstmt.close();
+            } catch (SQLException e) {
+                return ReturnValue.ERROR
+            }
+            try {
+                connection.close();
+            } catch (SQLException e) {
+                return ReturnValue.ERROR;
+            }
+        }
     }
 
     public static ReturnValue updateUserNotPremium(Integer userId)
     {
-        return null;
+        User cur = getUserProfile(userId);
+        if (!cur.getPremium()) {
+            return ReturnValue.ALREADY_EXISTS;
+        }
+        if (cur == User.badUser()) {
+            return ReturnValue.NOT_EXISTS;
+        }
+        Connection connection = DBConnector.getConnection();
+        PreparedStatement pstmt = null;
+        try {
+            pstmt = connection.prepareStatement(
+                    "UPDATE Users " +
+                            "SET premium = ? " +
+                            "where id = ?");
+            pstmt.setBoolean(1,0);
+            pstmt.setInt(1, userId);
+            int affectedRows = pstmt.executeUpdate();
+            System.out.println("changed " + affectedRows + " rows");
+        } catch (SQLException e) {
+            return ReturnValue.ERROR;
+        }
+        finally {
+            try {
+                pstmt.close();
+            } catch (SQLException e) {
+                return ReturnValue.ERROR
+            }
+            try {
+                connection.close();
+            } catch (SQLException e) {
+                return ReturnValue.ERROR;
+            }
+        }
     }
 
     public static ReturnValue addSong(Song song)
