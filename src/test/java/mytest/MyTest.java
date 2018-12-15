@@ -220,7 +220,7 @@ public class MyTest {
     }
 
     @Test
-    public void testAddSongToPlaylist() {
+    public void testAddRemoveSongPlaylist() {
         Playlist p1 = newPlaylist(1, "Funk", "Desc");
         assertEquals(OK, Solution.addPlaylist(p1));
         Playlist p2 = newPlaylist(2, "Metal", "Desc 2");
@@ -244,5 +244,109 @@ public class MyTest {
         assertEquals(BAD_PARAMS, Solution.addSongToPlaylist(babyBaby.getId(), p2.getId()));
         assertEquals(OK, Solution.addSongToPlaylist(theGateway.getId(), p1.getId()));
         assertEquals(OK, Solution.addSongToPlaylist(ironMan.getId(), p2.getId()));
+        Song s4 = newSong(4, "Dark Necessities", "Funk", "U.S", 0);
+        Solution.addSong(s4);
+        assertEquals(OK, Solution.addSongToPlaylist(s4.getId(), p1.getId()));
+        assertEquals(ALREADY_EXISTS, Solution.addSongToPlaylist(ironMan.getId(), p2.getId()));
+
+        assertEquals(NOT_EXISTS, Solution.removeSongFromPlaylist(-1, -1));
+        assertEquals(NOT_EXISTS, Solution.removeSongFromPlaylist(ironMan.getId(), -1));
+        assertEquals(NOT_EXISTS, Solution.removeSongFromPlaylist(-1, p2.getId()));
+        assertEquals(OK, Solution.removeSongFromPlaylist(ironMan.getId(), p2.getId()));
+        assertEquals(NOT_EXISTS, Solution.removeSongFromPlaylist(ironMan.getId(), p2.getId()));
+        assertEquals(OK, Solution.addSongToPlaylist(ironMan.getId(), p2.getId()));
+    }
+
+    @Test
+    public void testUserFollowUnfollowPlaylist() {
+        Playlist p1 = newPlaylist(1, "Funk", "Desc");
+        assertEquals(OK, Solution.addPlaylist(p1));
+        Playlist p2 = newPlaylist(2, "Metal", "Desc 2");
+        assertEquals(OK, Solution.addPlaylist(p2));
+
+        User u1 = newUser(1, "Miki", "Israel", false);
+        User u2 = newUser(2, "Rui", "Israel", true);
+
+        assertEquals(NOT_EXISTS, Solution.followPlaylist(-1, -1));
+        assertEquals(NOT_EXISTS, Solution.followPlaylist(u1.getId(), p1.getId()));
+
+        Solution.addUser(u1);
+        Solution.addUser(u2);
+        Solution.addPlaylist(p1);
+        Solution.addPlaylist(p2);
+
+        assertEquals(OK, Solution.followPlaylist(u1.getId(), p1.getId()));
+        assertEquals(ALREADY_EXISTS, Solution.followPlaylist(u1.getId(), p1.getId()));
+        assertEquals(OK, Solution.followPlaylist(u1.getId(), p2.getId()));
+        assertEquals(ALREADY_EXISTS, Solution.followPlaylist(u1.getId(), p2.getId()));
+        assertEquals(OK, Solution.followPlaylist(u2.getId(), p2.getId()));
+
+        assertEquals(NOT_EXISTS, Solution.followPlaylist(u1.getId(), 3));
+
+        assertEquals(NOT_EXISTS, Solution.stopFollowPlaylist(-1, -1));
+        assertEquals(NOT_EXISTS, Solution.stopFollowPlaylist(u1.getId(), -1));
+        assertEquals(NOT_EXISTS, Solution.stopFollowPlaylist(0, p1.getId()));
+        assertEquals(OK, Solution.stopFollowPlaylist(u1.getId(), p1.getId()));
+        assertEquals(NOT_EXISTS, Solution.stopFollowPlaylist(u1.getId(), p1.getId()));
+        assertEquals(NOT_EXISTS, Solution.stopFollowPlaylist(u2.getId(), p1.getId()));
+        assertEquals(OK, Solution.stopFollowPlaylist(u2.getId(), p2.getId()));
+        assertEquals(OK, Solution.followPlaylist(u2.getId(), p2.getId()));
+    }
+
+    @Test
+    public void testGetPlaylistTotalCount() {
+        Playlist p1 = newPlaylist(1, "Funk", "Desc");
+        Solution.addPlaylist(p1);
+
+        assertEquals(Integer.valueOf(0), Solution.getPlaylistTotalPlayCount(-1));
+        assertEquals(Integer.valueOf(0), Solution.getPlaylistTotalPlayCount(0));
+
+        Song theGateway = newSong(1, "The Gateway", "Funk", "U.S", 0);
+        Song darkNecessities = newSong(2, "Dark Necessities", "Funk", "U.S", 0);
+        Song babyBaby = newSong(3, "Baby", "Pop", "U.S", 0);
+        Solution.addSong(theGateway);
+        Solution.addSong(darkNecessities);
+        Solution.addSong(babyBaby);
+
+        Solution.addSongToPlaylist(theGateway.getId(), p1.getId());
+        assertEquals(Integer.valueOf(0), Solution.getPlaylistTotalPlayCount(p1.getId()));
+
+        assertEquals(OK, Solution.songPlay(theGateway.getId(), 100));
+        assertEquals(OK, Solution.songPlay(darkNecessities.getId(), 100));
+
+        assertEquals(Integer.valueOf(100), Solution.getPlaylistTotalPlayCount(p1.getId()));
+        Solution.addSongToPlaylist(darkNecessities.getId(), p1.getId());
+        assertEquals(Integer.valueOf(200), Solution.getPlaylistTotalPlayCount(p1.getId()));
+    }
+
+    @Test
+    public void testGetPlaylistFollowersCount() {
+        Playlist p1 = newPlaylist(1, "Funk", "Desc");
+        assertEquals(Integer.valueOf(0), Solution.getPlaylistFollowersCount(p1.getId()));
+        Solution.addPlaylist(p1);
+
+        User u1 = newUser(1, "Name", "Country", true);
+        User u2 = newUser(2, "Name", "Country", true);
+        User u3 = newUser(3, "Name", "Country", true);
+        User u4 = newUser(4, "Name", "Country", true);
+
+        Solution.addUser(u1);
+        Solution.addUser(u2);
+        Solution.addUser(u3);
+        Solution.addUser(u4);
+
+        assertEquals(Integer.valueOf(0), Solution.getPlaylistFollowersCount(-1));
+        assertEquals(Integer.valueOf(0), Solution.getPlaylistFollowersCount(p1.getId()));
+
+        assertEquals(OK, Solution.followPlaylist(u1.getId(), p1.getId()));
+        assertEquals(OK, Solution.followPlaylist(u2.getId(), p1.getId()));
+        assertEquals(OK, Solution.followPlaylist(u3.getId(), p1.getId()));
+        assertEquals(OK, Solution.followPlaylist(u4.getId(), p1.getId()));
+
+        assertEquals(Integer.valueOf(4), Solution.getPlaylistFollowersCount(p1.getId()));
+        Solution.stopFollowPlaylist(u1.getId(), p1.getId());
+        assertEquals(Integer.valueOf(3), Solution.getPlaylistFollowersCount(p1.getId()));
+        Solution.followPlaylist(u2.getId(), p1.getId());
+        assertEquals(Integer.valueOf(3), Solution.getPlaylistFollowersCount(p1.getId()));
     }
 }
