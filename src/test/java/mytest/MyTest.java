@@ -5,6 +5,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import technify.Solution;
+import technify.business.Playlist;
 import technify.business.ReturnValue;
 import technify.business.Song;
 import technify.business.User;
@@ -46,6 +47,14 @@ public class MyTest {
         s.setCountry(country);
         s.setPlayCount(playCount);
         return s;
+    }
+
+    private static Playlist newPlaylist(int id, String genre, String description) {
+        Playlist p = new Playlist();
+        p.setId(id);
+        p.setGenre(genre);
+        p.setDescription(description);
+        return p;
     }
 
     @Test
@@ -138,5 +147,102 @@ public class MyTest {
 
         assertEquals(NOT_EXISTS, Solution.songPlay(-1, 1));
         assertEquals(BAD_PARAMS, Solution.songPlay(song1.getId(), -1));
+    }
+
+    @Test
+    public void testUpdateSongName() {
+        Song song1 = newSong(1, "Song 1", "Rock", "Israel", 100);
+        assertEquals(OK, Solution.addSong(song1));
+        Song song2 = newSong(2, "Song 2", "Metal", "USA", -100);
+
+        assertEquals("Song 1", Solution.getSong(song1.getId()).getName());
+        song1.setName("Song 1 Updated");
+        assertEquals(OK, Solution.updateSongName(song1));
+        assertEquals("Song 1 Updated", Solution.getSong(song1.getId()).getName());
+
+        assertEquals(NOT_EXISTS, Solution.updateSongName(Song.badSong()));
+        assertEquals(NOT_EXISTS, Solution.updateSongName(song2));
+
+        assertEquals(OK, Solution.addSong(song2));
+        song2.setName(null);
+        assertEquals(BAD_PARAMS, Solution.updateSongName(song2));
+    }
+
+    @Test
+    public void testPlaylist() {
+        Playlist p1 = newPlaylist(1, "Genre", "Desc");
+        assertEquals(OK, Solution.addPlaylist(p1));
+        assertEquals(ALREADY_EXISTS, Solution.addPlaylist(p1));
+        p1.setGenre("New Genre");
+        p1.setDescription("New Desc");
+        assertEquals(ALREADY_EXISTS, Solution.addPlaylist(p1));
+        assertEquals(BAD_PARAMS, Solution.addPlaylist(Playlist.badPlaylist()));
+
+        Playlist p2 = newPlaylist(-1, "Genre", "Desc");
+        assertEquals(BAD_PARAMS, Solution.addPlaylist(p2));
+        p2.setId(0);
+        assertEquals(BAD_PARAMS, Solution.addPlaylist(p2));
+        p2.setId(1);
+        assertEquals(ALREADY_EXISTS, Solution.addPlaylist(p2));
+        p2.setId(2);
+        p2.setDescription(null);
+        assertEquals(BAD_PARAMS, Solution.addPlaylist(p2));
+        p2.setDescription("Desc");
+        p2.setGenre(null);
+        assertEquals(BAD_PARAMS, Solution.addPlaylist(p2));
+        p2.setGenre("Genre");
+        assertEquals(OK, Solution.addPlaylist(p2));
+
+        assertEquals(Playlist.badPlaylist(), Solution.getPlaylist(-1));
+        assertEquals(Playlist.badPlaylist(), Solution.getPlaylist(0));
+        assertEquals(Playlist.badPlaylist(), Solution.getPlaylist(3));
+        Playlist p1queried = Solution.getPlaylist(p1.getId());
+        assertEquals(p1queried.getId(), p1.getId());
+        assertEquals(p2, Solution.getPlaylist(p2.getId()));
+
+        assertEquals(NOT_EXISTS, Solution.deletePlaylist(Playlist.badPlaylist()));
+        assertEquals(OK, Solution.deletePlaylist(p1queried));
+        assertEquals(Playlist.badPlaylist(), Solution.getPlaylist(p1.getId()));
+        assertEquals(OK, Solution.addPlaylist(p1queried));
+
+        String desc1 = "This is the first description";
+        String desc2 = "This is the second description";
+        Playlist p3 = newPlaylist(3, "Genre", desc1);
+        assertEquals(NOT_EXISTS, Solution.updatePlaylist(p3));
+        assertEquals(OK, Solution.addPlaylist(p3));
+        p3.setDescription(null);
+        assertEquals(BAD_PARAMS, Solution.updatePlaylist(p3));
+        assertEquals(desc1, Solution.getPlaylist(p3.getId()).getDescription());
+        p3.setDescription(desc2);
+        assertEquals(OK, Solution.updatePlaylist(p3));
+        assertEquals(desc2, Solution.getPlaylist(p3.getId()).getDescription());
+
+    }
+
+    @Test
+    public void testAddSongToPlaylist() {
+        Playlist p1 = newPlaylist(1, "Funk", "Desc");
+        assertEquals(OK, Solution.addPlaylist(p1));
+        Playlist p2 = newPlaylist(2, "Metal", "Desc 2");
+        assertEquals(OK, Solution.addPlaylist(p2));
+
+        Song theGateway = newSong(1, "The Gateway", "Funk", "U.S", 0);
+        Song ironMan = newSong(2, "Iron Man", "Metal", "U.K", 0);
+        Song babyBaby = newSong(3, "Baby", "Pop", "U.S", 0);
+
+        Solution.addSong(theGateway);
+
+        assertEquals(NOT_EXISTS, Solution.addSongToPlaylist(10, p1.getId()));
+        assertEquals(NOT_EXISTS, Solution.addSongToPlaylist(theGateway.getId(), -1));
+        assertEquals(NOT_EXISTS, Solution.addSongToPlaylist(theGateway.getId(), 0));
+        assertEquals(NOT_EXISTS, Solution.addSongToPlaylist(ironMan.getId(), p2.getId()));
+
+        Solution.addSong(babyBaby);
+        Solution.addSong(ironMan);
+
+        assertEquals(BAD_PARAMS, Solution.addSongToPlaylist(babyBaby.getId(), p1.getId()));
+        assertEquals(BAD_PARAMS, Solution.addSongToPlaylist(babyBaby.getId(), p2.getId()));
+        assertEquals(OK, Solution.addSongToPlaylist(theGateway.getId(), p1.getId()));
+        assertEquals(OK, Solution.addSongToPlaylist(ironMan.getId(), p2.getId()));
     }
 }
