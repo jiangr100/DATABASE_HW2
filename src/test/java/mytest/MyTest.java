@@ -1,15 +1,15 @@
 package mytest;
 
 import org.junit.AfterClass;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import technify.Solution;
 import technify.business.ReturnValue;
+import technify.business.Song;
 import technify.business.User;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 import static technify.business.ReturnValue.*;
 
 public class MyTest {
@@ -24,10 +24,10 @@ public class MyTest {
         Solution.dropTables();
     }
 
-//    @Test
-//    public void testClearTables() {
-//        Solution.clearTables();
-//    }
+    @Before
+    public void testClearTables() {
+        Solution.clearTables();
+    }
 
     private static User newUser(int id, String name, String country, boolean premium) {
         User u = new User();
@@ -36,6 +36,16 @@ public class MyTest {
         u.setCountry(country);
         u.setPremium(premium);
         return u;
+    }
+
+    private static Song newSong(int id, String name, String genre, String country, int playCount) {
+        Song s = new Song();
+        s.setId(id);
+        s.setName(name);
+        s.setGenre(genre);
+        s.setCountry(country);
+        s.setPlayCount(playCount);
+        return s;
     }
 
     @Test
@@ -84,5 +94,49 @@ public class MyTest {
         assertEquals(Solution.deleteUser(user1queried), NOT_EXISTS);
         assertEquals(Solution.deleteUser(user2queried), OK);
         assertEquals(Solution.deleteUser(user3), NOT_EXISTS);
+    }
+
+    @Test
+    public void testSong() {
+        assertEquals(BAD_PARAMS, Solution.addSong(Song.badSong()));
+        Song song1 = newSong(1, "Song 1", "Rock", "Israel", 0);
+        assertEquals(OK, Solution.addSong(song1));
+        assertEquals(ALREADY_EXISTS, Solution.addSong(song1));
+        Song song1copy = newSong(song1.getId(), song1.getName(), song1.getGenre(), song1.getCountry(), 1);
+        assertEquals(ALREADY_EXISTS, Solution.addSong(song1copy));
+        song1copy.setId(2);
+        assertEquals(OK, Solution.addSong(song1copy));
+
+        // Parameter Checks
+        assertEquals(BAD_PARAMS, Solution.addSong(newSong(0, "Song", "Rock", "Israel", 0)));
+        assertEquals(BAD_PARAMS, Solution.addSong(newSong(3, null, "Rock", "Israel", 0)));
+        assertEquals(BAD_PARAMS, Solution.addSong(newSong(3, "Song", null, "Israel", 0)));
+        assertEquals(OK, Solution.addSong(newSong(3, "Song", "Rock", null, -1)));
+
+        Song song1queried = Solution.getSong(song1.getId());
+        assertEquals(song1queried, song1);
+        Song song2queried = Solution.getSong(song1copy.getId());
+        assertNotEquals(song2queried, song1copy);
+        assertEquals(song2queried.getId(), song1copy.getId());
+        assertEquals(song2queried.getName(), song1copy.getName());
+        assertEquals(song2queried.getCountry(), song1copy.getCountry());
+        assertEquals(song2queried.getGenre(), song1copy.getGenre());
+
+        assertEquals(NOT_EXISTS, Solution.deleteSong(Song.badSong()));
+        assertEquals(OK, Solution.deleteSong(song1queried));
+        assertEquals(NOT_EXISTS, Solution.deleteSong(song1queried));
+        assertEquals(OK, Solution.addSong(song1queried));
+        assertEquals(OK, Solution.deleteSong(song1));
+    }
+
+    @Test
+    public void testSongPlay() {
+        Song song1 = newSong(1, "Song 1", "Rock", "Israel", 100);
+        assertEquals(OK, Solution.addSong(song1));
+        Song song2 = newSong(2, "Song 2", "Metal", "USA", -100);
+        assertEquals(OK, Solution.addSong(song2));
+
+        assertEquals(NOT_EXISTS, Solution.songPlay(-1, 1));
+        assertEquals(BAD_PARAMS, Solution.songPlay(song1.getId(), -1));
     }
 }

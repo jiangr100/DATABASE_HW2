@@ -151,8 +151,7 @@ public class Solution {
             statement.setString(2, user.getName());
             statement.setString(3, user.getCountry());
             statement.setBoolean(4, user.getPremium());
-            statement.execute();
-            return ReturnValue.OK;
+            return statement.executeUpdate() == 1 ? ReturnValue.OK : ReturnValue.ALREADY_EXISTS;
         } catch (SQLException ex) {
             switch (errorCode(ex)) {
                 case UNIQUE_VIOLATION:
@@ -199,8 +198,7 @@ public class Solution {
                 "DELETE FROM " + TABLE_USER + " WHERE id = ?");
         try {
             statement.setInt(1, user.getId());
-            int affectedRows = statement.executeUpdate();
-            return affectedRows == 1 ? ReturnValue.OK : ReturnValue.NOT_EXISTS;
+            return statement.executeUpdate() == 1 ? ReturnValue.OK : ReturnValue.NOT_EXISTS;
         } catch (SQLException ex) {
             return ReturnValue.ERROR;
         } finally {
@@ -219,8 +217,7 @@ public class Solution {
         try {
             statement.setBoolean(1, premium);
             statement.setInt(2, userId);
-            int affectedRows = statement.executeUpdate();
-            return affectedRows == 1 ? ReturnValue.OK: ReturnValue.NOT_EXISTS;
+            return statement.executeUpdate() == 1 ? ReturnValue.OK: ReturnValue.NOT_EXISTS;
         } catch (SQLException ex) {
             switch (errorCode(ex)) {
                 case UNIQUE_VIOLATION:
@@ -249,8 +246,7 @@ public class Solution {
             statement.setString(2, song.getName());
             statement.setString(3, song.getGenre());
             statement.setString(4, song.getCountry());
-            statement.execute();
-            return ReturnValue.OK;
+            return statement.executeUpdate() == 1 ? ReturnValue.OK : ReturnValue.ALREADY_EXISTS;
         } catch (SQLException ex) {
             switch (errorCode(ex)) {
                 case UNIQUE_VIOLATION:
@@ -266,14 +262,45 @@ public class Solution {
         }
     }
 
-    public static Song getSong(Integer songId)
-    {
-        return null;
+    public static Song getSong(Integer songId) {
+        Connection connection = DBConnector.getConnection();
+        PreparedStatement statement = prepareStatement(connection,
+                "SELECT * FROM " + TABLE_SONG + " WHERE id = ?");
+        Song song = Song.badSong();
+        try {
+            statement.setInt(1, songId);
+            ResultSet set = statement.executeQuery();
+            if(set.next()) {
+                Song newSong = new Song();
+                newSong.setId(set.getInt(1));
+                newSong.setName(set.getString(2));
+                newSong.setGenre(set.getString(3));
+                newSong.setCountry(set.getString(4));
+                newSong.setPlayCount(set.getInt(5));
+                song = newSong;
+            }
+        } catch (SQLException ex) {
+
+        } finally {
+            finish(statement);
+            closeConnection(connection);
+        }
+        return song;
     }
 
-    public static ReturnValue deleteSong(Song song)
-    {
-        return null;
+    public static ReturnValue deleteSong(Song song) {
+        Connection connection = DBConnector.getConnection();
+        PreparedStatement statement = prepareStatement(connection,
+                "DELETE FROM " + TABLE_SONG + " WHERE id = ?");
+        try {
+            statement.setInt(1, song.getId());
+            return statement.executeUpdate() == 1 ? ReturnValue.OK : ReturnValue.NOT_EXISTS;
+        } catch (SQLException ex) {
+            return ReturnValue.ERROR;
+        } finally {
+            finish(statement);
+            closeConnection(connection);
+        }
     }
 
     public static ReturnValue updateSongName(Song song)
@@ -318,7 +345,23 @@ public class Solution {
     }
 
     public static ReturnValue songPlay(Integer songId, Integer times){
-        return null;
+        Connection connection = DBConnector.getConnection();
+        PreparedStatement statement = prepareStatement(connection,
+                "UPDATE " + TABLE_SONG + " SET playCount = playCount + ? WHERE id = ?");
+        try {
+            statement.setInt(1, times);
+            statement.setInt(2, songId);
+            return statement.executeUpdate() == 1 ? ReturnValue.OK: ReturnValue.NOT_EXISTS;
+        } catch (SQLException ex) {
+            switch (errorCode(ex)) {
+                case CHECK_VIOLATION: return ReturnValue.BAD_PARAMS;
+                case UNIQUE_VIOLATION: return ReturnValue.NOT_EXISTS;
+                default: return ReturnValue.ERROR;
+            }
+        } finally {
+            finish(statement);
+            closeConnection(connection);
+        }
     }
 
     public static Integer getPlaylistTotalPlayCount(Integer playlistId){
