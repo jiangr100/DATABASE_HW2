@@ -456,19 +456,89 @@ public class Solution {
     }
 
     public static Integer getPlaylistTotalPlayCount(Integer playlistId){
-        return null;
+        Connection connection = DBConnector.getConnection();
+        PreparedStatement statement = prepareStatement(connection,
+                "SELECT COUNT(songid) FROM" + TABLE_INPLAYLIST + " WHERE playlistid = ?");
+        try {
+            statement.setInt(1, playlistId);
+            ResultSet results = statement.executeQuery();
+            return results.next() ? results.getInt(1) : 0;
+        } catch (SQLException ex) {
+            return 0;
+        } finally {
+            finish(statement);
+            closeConnection(connection);
+        }
     }
 
     public static Integer getPlaylistFollowersCount(Integer playlistId){
-        return null;
+        Connection connection = DBConnector.getConnection();
+        PreparedStatement statement = prepareStatement(connection,
+                "SELECT COUNT(userid) FROM" + TABLE_FOLLOW + " WHERE playlistid = ?");
+        try {
+            statement.setInt(1, playlistId);
+            ResultSet results = statement.executeQuery();
+            return results.next() ? results.getInt(1) : 0;
+        } catch (SQLException ex) {
+            return 0;
+        } finally {
+            finish(statement);
+            closeConnection(connection);
+        }
     }
 
     public static String getMostPopularSong(){
-        return null;
+        Connection connection = DBConnector.getConnection();
+        PreparedStatement statement = prepareStatement(connection,
+                "SELECT songid FROM" + TABLE_SONG + "WHERE songid = (" +
+                        "SELECT MAX(songid) FROM (" +
+                            "SELECT songid, COUNT(playlistid) AS count2 FROM" +
+                            TABLE_INPLAYLIST +
+                            "GROUP BY songid " +
+                            "HAVING count2 = ("
+                                "SELECT MAX(count) FROM (" +
+                                    "SELECT songid, COUNT(playlistid) AS count FROM" +
+                                    TABLE_INPLAYLIST +
+                                    " GROUP BY songid" +
+                                ")" +
+                            ")" +
+                        ")" +
+                     ")");
+        try {
+            ResultSet results = statement.executeQuery();
+            return results.next() ? results.getString(1) : "No songs";
+        } catch (SQLException ex) {
+            return null;
+        } finally {
+            finish(statement);
+            closeConnection(connection);
+        }
     }
 
     public static Integer getMostPopularPlaylist(){
-        return null;
+        Connection connection = DBConnector.getConnection();
+        PreparedStatement statement = prepareStatement(connection,
+                "SELECT MAX(playlistid) FROM (" +
+                        "SELECT IP.playlistid, SUM(S.playCount) AS sum2 FROM " + TABLE_SONG + " S, "
+                        + TABLE_INPLAYLIST " IP" +
+                        " GROUP BY IP.playlistid " +
+                        " HAVING sum2 = ("
+                            "SELECT MAX(sum) As max FROM (" +
+                                    "SELECT SUM(S.playCount) AS sum FROM " + TABLE_SONG + " S, "
+                                    + TABLE_INPLAYLIST " IP" +
+                                    " GROUP BY IP.playlistid " +
+                            ")" +
+                        ")" +
+                        ")" );
+        try {
+            ResultSet results = statement.executeQuery();
+            return results.next() ? results.getInt(1) : 0;
+        } catch (SQLException ex) {
+            return null;
+        } finally {
+            finish(statement);
+            closeConnection(connection);
+        }
     }
 
     public static ArrayList<Integer> hottestPlaylistsOnTechnify(){
