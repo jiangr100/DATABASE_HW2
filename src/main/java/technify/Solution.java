@@ -17,7 +17,8 @@ public class Solution {
     private static final String TABLE_SONG = "song";
     private static final String TABLE_PLAYLIST = "playlist";
 
-    private static PreparedStatement prepareStatement(Connection c, String sql) {
+
+    private static PreparedStatement prepareStatement(Connection c, String sql) { //todo error to be returned
         PreparedStatement pstmt;
         try {
             pstmt = c.prepareStatement(sql);
@@ -27,7 +28,7 @@ public class Solution {
         }
     }
 
-    private static void closeConnection(Connection c) {
+    private static void closeConnection(Connection c) {   //todo we should return error if there's an exception
         try {
             c.close();
         } catch (SQLException e) {
@@ -35,7 +36,7 @@ public class Solution {
         }
     }
 
-    private static void finish(PreparedStatement s) {
+    private static void finish(PreparedStatement s) { //todo error
         if(s == null) return;
         try {
             s.close();
@@ -305,26 +306,116 @@ public class Solution {
 
     public static ReturnValue updateSongName(Song song)
     {
+        Connection connection = DBConnector.getConnection();
+        PreparedStatement statement = prepareStatement(connection,
+                "UPDATE " + TABLE_SONG + " SET name = ? WHERE id = ?");
+        try {
+            statement.setString(1, song.getName());
+            statement.setInt(2, song.getId());
+            return statement.executeUpdate() == 1 ? ReturnValue.OK: ReturnValue.NOT_EXISTS;
+        } catch (SQLException ex) {
+            switch (errorCode(ex)) {
+                case UNIQUE_VIOLATION:
+                    return ReturnValue.NOT_EXISTS;
+                case CHECK_VIOLATION:
+                    return ReturnValue.BAD_PARAMS;
+            }
+            return ReturnValue.ERROR;
+        } finally {
+            finish(statement);
+            closeConnection(connection);
+        }
         return null;
     }
 
     public static ReturnValue addPlaylist(Playlist playlist)
     {
-        return null;
+        Connection connection = DBConnector.getConnection();
+        PreparedStatement statement = prepareStatement(connection,
+                "INSERT INTO " + TABLE_PLAYLIST + " VALUES(?, ?, ?, ?)");
+        try {
+            statement.setInt(1, playlist.getId());
+            statement.setString(2, playlist.getGenre());
+            statement.setString(3, playlist.getDescription());
+            statement.execute();
+            return ReturnValue.OK;
+        } catch (SQLException ex) {
+            switch (errorCode(ex)) {
+                case UNIQUE_VIOLATION:
+                    return ReturnValue.ALREADY_EXISTS;
+                case NOT_NULL_VIOLATION:
+                case CHECK_VIOLATION:
+                    return ReturnValue.BAD_PARAMS;
+            }
+            return ReturnValue.ERROR;
+        } finally {
+            finish(statement);
+            closeConnection(connection);
+        }
     }
 
     public static Playlist getPlaylist(Integer playlistId)
     {
-        return null;
+        Connection connection = DBConnector.getConnection();
+        PreparedStatement statement = prepareStatement(connection,
+                "SELECT * FROM " + TABLE_PLAYLIST + " WHERE id = ?");
+        Playlist playlist = Playlist.badPlaylist();
+        try {
+            statement.setInt(1, playlistId);
+            ResultSet set = statement.executeQuery();
+            if(set.next()) {
+                Playlist newPlaylist = new Playlist();
+                newPlaylist.setId(set.getInt(1));
+                newPlaylist.setGenre(set.getString(2));
+                newPlaylist.setDescription(set.getString(3));
+                playlist = newPlaylist;
+            }
+        } catch (SQLException ex) {
+
+        } finally {
+            finish(statement);
+            closeConnection(connection);
+        }
+        return playlist;
     }
 
     public static ReturnValue deletePlaylist(Playlist playlist)
     {
-        return null;
+        Connection connection = DBConnector.getConnection();
+        PreparedStatement statement = prepareStatement(connection,
+                "DELETE FROM " + TABLE_PLAYLIST + " WHERE id = ?");
+        try {
+            statement.setInt(1, playlist.getId());
+            return statement.executeUpdate() == 1 ? ReturnValue.OK : ReturnValue.NOT_EXISTS;
+        } catch (SQLException ex) {
+            return ReturnValue.ERROR;
+        } finally {
+            finish(statement);
+            closeConnection(connection);
+        }
     }
 
     public static ReturnValue updatePlaylist(Playlist playlist)
     {
+        Connection connection = DBConnector.getConnection();
+        PreparedStatement statement = prepareStatement(connection,
+                "UPDATE " + TABLE_PLAYLIST + " SET description = ? WHERE id = ?");
+        try {
+            statement.setString(1, playlist.getDescription());
+            statement.setInt(2, playlist.getId());
+            return statement.executeUpdate() == 1 ? ReturnValue.OK: ReturnValue.NOT_EXISTS;
+        } catch (SQLException ex) {
+            switch (errorCode(ex)) {
+                case UNIQUE_VIOLATION:
+                    return ReturnValue.NOT_EXISTS;
+                case CHECK_VIOLATION:
+                    return ReturnValue.BAD_PARAMS;
+            }
+            return ReturnValue.ERROR;
+        } finally {
+            finish(statement);
+            closeConnection(connection);
+        }
         return null;
     }
 
