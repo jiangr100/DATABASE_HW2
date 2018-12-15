@@ -542,10 +542,69 @@ public class Solution {
     }
 
     public static ArrayList<Integer> hottestPlaylistsOnTechnify(){
-        return null;
+        Connection connection = DBConnector.getConnection();
+        PreparedStatement statement = prepareStatement(connection,
+                "SELECT T.playlist, " +
+                        "( SELECT " +
+                            "( SELECT COUNT(songid) AS count FROM " + TABLE_INPLAYLIST +
+                                "WHERE playlistid = T.playlist) / " +
+                            "( SELECT SUM(S.playCount) AS sum FROM " + TABLE_SONG + " S, "
+                            + TABLE_INPLAYLIST " IP" +
+                            " WHERE playlistid = T.playlist) ) AS rating" +
+                        " FROM " + TABLE_PLAYLIST + " T " +
+                        " ORDER BY rating DESC T.playlist ASC LIMIT 10" );
+        try {
+            ResultSet results = statement.executeQuery();
+            int i = 0;
+            ArrayList<Integer> Arr = new ArrayList<Integer>();
+            while (results.next() && i < 10) {
+                Arr.add(results.getInt(1));
+                i++;
+            }
+            return Arr;
+        } catch (SQLException ex) {
+            return null;
+        } finally {
+            finish(statement);
+            closeConnection(connection);
+        }
     }
 
     public static ArrayList<Integer> getSimilarUsers(Integer userId){
+        Connection connection = DBConnector.getConnection();
+        PreparedStatement statement = prepareStatement(connection,
+                "SELECT uid, (COUNT(pl) / " +
+                        " COUNT(SELECT playlistid FROM " + TABLE_FOLLOW + " WHERE userid = ?) AS persentage)" +
+                        " FROM (" +
+                            "SELECT U.id AS uid, F.playlistid AS pl FROM " +
+                            TABLE_USER + " U, " + TABLE_FOLLOW + " F " +
+                            "WHERE U.id != ? AND U.id = F.userid AND " +
+                                "F.playlistid in (" +
+                                    "SELECT playlistid FROM " +
+                                    TABLE_FOLLOW +
+                                    "WHERE userid = ? )" +
+                            ") " +
+                        " GROUP BY uid" +
+                        " HAVING persentage >= 75" +
+                        " ORDER BY uid ASC LIMIT 10");
+        try {
+            statement.setInt(1, userId);
+            statement.setInt(2, userId);
+            statement.setInt(3, userId);
+            ResultSet results = statement.executeQuery();
+            int i = 0;
+            ArrayList<Integer> Arr = new ArrayList<Integer>();
+            while (results.next() && i < 10) {
+                Arr.add(results.getInt(1));
+                i++;
+            }
+            return Arr;
+        } catch (SQLException ex) {
+            return null;
+        } finally {
+            finish(statement);
+            closeConnection(connection);
+        }
         return null;
     }
 
@@ -554,6 +613,7 @@ public class Solution {
     }
 
     public static ArrayList<Integer> getPlaylistRecommendation (Integer userId){
+
         return null;
     }
 
