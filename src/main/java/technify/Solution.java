@@ -3,6 +3,7 @@ package technify;
 import technify.business.*;
 
 import technify.data.DBConnector;
+import technify.data.PostgreSQLErrorCodes;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -12,7 +13,7 @@ import java.util.ArrayList;
 
 public class Solution {
 
-    private static final String TABLE_USER = "technifyUser";
+    private static final String TABLE_USER = "technifyuser";
     private static final String TABLE_SONG = "song";
     private static final String TABLE_PLAYLIST = "playlist";
 
@@ -41,6 +42,14 @@ public class Solution {
         } catch (SQLException e) {
             //
         }
+    }
+
+    private static PostgreSQLErrorCodes errorCode(SQLException ex) {
+        int code = Integer.valueOf(ex.getSQLState());
+        for(PostgreSQLErrorCodes c : PostgreSQLErrorCodes.values()) {
+            if(c.getValue() == code) return c;
+        }
+        return null;
     }
 
     public static void createTables() {
@@ -84,13 +93,11 @@ public class Solution {
             songCreateStatement.execute();
             playlistCreateStatement.execute();
         } catch (SQLException ex) {
-            ex.printStackTrace();
+            finish(userCreateStatement);
+            finish(songCreateStatement);
+            finish(playlistCreateStatement);
+            closeConnection(connection);
         }
-
-        finish(userCreateStatement);
-        finish(songCreateStatement);
-        finish(playlistCreateStatement);
-        closeConnection(connection);
     }
 
     public static void clearTables() {
@@ -106,12 +113,12 @@ public class Solution {
             playlistClearStatement.execute();
         } catch (SQLException ex) {
             ex.printStackTrace();
-        }
 
-        finish(userClearStatement);
-        finish(songClearStatement);
-        finish(playlistClearStatement);
-        closeConnection(connection);
+            finish(userClearStatement);
+            finish(songClearStatement);
+            finish(playlistClearStatement);
+            closeConnection(connection);
+        }
     }
 
     public static void dropTables() {
@@ -127,202 +134,141 @@ public class Solution {
             playlistDropStatement.execute();
         } catch (SQLException ex) {
             ex.printStackTrace();
+        } finally {
+            finish(userDropStatement);
+            finish(songDropStatement);
+            finish(playlistDropStatement);
+            closeConnection(connection);
         }
-
-        finish(userDropStatement);
-        finish(songDropStatement);
-        finish(playlistDropStatement);
-        closeConnection(connection);
     }
 
-
     public static ReturnValue addUser(User user) {
-        if (user.getId() <= 0 || user.getName() == null ||
-            user.getCountry() == null) {
-            return ReturnValue.BAD_PARAMS;
-        }
-        if (getUserProfile(user.getId()) != User.badUser()) {
-            return ReturnValue.BAD_PARAMS;
-        }
         Connection connection = DBConnector.getConnection();
-        PreparedStatement pstmt = null;
+        PreparedStatement statement = prepareStatement(connection,
+                "INSERT INTO " + TABLE_USER + " VALUES(?, ?, ?, ?)");
         try {
-            pstmt = connection.prepareStatement("INSERT INTO Users" +
-                    " VALUES (?, ?, ?, ?)" );
-            pstmt.setInt(1,user.getId());
-            pstmt.setString(2, user.getName());
-            pstmt.setString(3,user.getCountry());
-            pstmt.setBoolean(4,user.getPremium());
-
-
-            pstmt.execute();
+            statement.setInt(1, user.getId());
+            statement.setString(2, user.getName());
+            statement.setString(3, user.getCountry());
+            statement.setBoolean(4, user.getPremium());
+            statement.execute();
             return ReturnValue.OK;
-
-        } catch (SQLException e) {
+        } catch (SQLException ex) {
+            switch (errorCode(ex)) {
+                case UNIQUE_VIOLATION:
+                    return ReturnValue.ALREADY_EXISTS;
+                case NOT_NULL_VIOLATION:
+                case CHECK_VIOLATION:
+                    return ReturnValue.BAD_PARAMS;
+            }
             return ReturnValue.ERROR;
-        }
-        finally {
-            try {
-                pstmt.close();
-            } catch (SQLException e) {
-                return ReturnValue.ERROR;
-            }
-            try {
-                connection.close();
-            } catch (SQLException e) {
-                return ReturnValue.ERROR;
-            }
+        } finally {
+            finish(statement);
+            closeConnection(connection);
         }
     }
 
     public static User getUserProfile(Integer userId) {
         Connection connection = DBConnector.getConnection();
-        PreparedStatement pstmt = null;
+        PreparedStatement statement = prepareStatement(connection,
+                "SELECT * FROM " + TABLE_USER + " WHERE id = ?");
+        User user = User.badUser();
         try {
-            pstmt = connection.prepareStatement(
-                    "SELECT * FROM Users " +
-                        "WHERE id = ?");
-            pstmt.setInt(1, userId);
+            statement.setInt(1, userId);
+            ResultSet set = statement.executeQuery();
+            if(set.next()) {
+                User newUser = new User();
+                newUser.setId(set.getInt(1));
+                newUser.setName(set.getString(2));
+                newUser.setCountry(set.getString(3));
+                newUser.setPremium(set.getBoolean(4));
+                user = newUser;
+            }
+        } catch (SQLException ex) {
 
-            ResultSet results = pstmt.executeQuery();
-            DBConnector.printResults(results);
-            if (!results.next()) {
-                results.close();
-                return User.badUser();
-            }
-            User cur(results.getInt(0),
-                    results.getString(1),
-                    results.getString(2),
-                    results.getBoolean(3));
-            results.close();
-            return cur;
-
-        } catch (SQLException e) {
-            return User.badUser();
+        } finally {
+            finish(statement);
+            closeConnection(connection);
         }
-        finally {
-            try {
-                pstmt.close();
-            } catch (SQLException e) {
-                return User.badUser();
-            }
-            try {
-                connection.close();
-            } catch (SQLException e) {
-                return User.badUser();
-            }
-        }
-        return null;
+        return user;
     }
 
-    public static ReturnValue deleteUser(User user)
-    {
+    public static ReturnValue deleteUser(User user) {
         Connection connection = DBConnector.getConnection();
-        PreparedStatement pstst = null;
+        PreparedStatement statement = prepareStatement(connection,
+                "DELETE FROM " + TABLE_USER + " WHERE id = ?");
         try {
-            pstst = connection.prepareStatement(
-                    "DELETE FROM Users " +
-
-                            "where id = ?");
-            pstst.setInt(1, user.getId());
-
-            int affectedRows = pstst.executeUpdate();
-            System.out.println("deleted " + affectedRows + " rows");
-        } catch (SQLException e) {
-
-        }
-        finally {
-            try {
-                pstst.close();
-            } catch (SQLException e) {
-                //e.printStackTrace()();
+            statement.setInt(1, user.getId());
+            statement.execute();
+            return ReturnValue.OK;
+        } catch (SQLException ex) {
+            switch (errorCode(ex)) {
+                case CHECK_VIOLATION:
+                case UNIQUE_VIOLATION:
+                    return ReturnValue.NOT_EXISTS;
             }
-            try {
-                connection.close();
-            } catch (SQLException e) {
-                //e.printStackTrace()();
-            }
+            return ReturnValue.ERROR;
+        } finally {
+            finish(statement);
+            closeConnection(connection);
         }
-        return null;
     }
 
-    public static ReturnValue updateUserPremium(Integer userId)
-    {
-        User cur = getUserProfile(userId);
-        if (cur.getPremium()) {
+    private static ReturnValue updateUserStatus(Integer userId, boolean premium) {
+        if(getUserProfile(userId).getPremium() == premium) {
             return ReturnValue.ALREADY_EXISTS;
         }
-        if (cur == User.badUser()) {
-            return ReturnValue.NOT_EXISTS;
-        }
         Connection connection = DBConnector.getConnection();
-        PreparedStatement pstmt = null;
+        PreparedStatement statement = prepareStatement(connection,
+                "UPDATE " + TABLE_USER + " SET premium = ? WHERE id = ?");
         try {
-            pstmt = connection.prepareStatement(
-                    "UPDATE Users " +
-                            "SET premium = ? " +
-                            "where id = ?");
-            pstmt.setBoolean(1,1);
-            pstmt.setInt(1, userId);
-            int affectedRows = pstmt.executeUpdate();
-            System.out.println("changed " + affectedRows + " rows");
-        } catch (SQLException e) {
+            statement.setBoolean(1, premium);
+            statement.setInt(2, userId);
+            statement.execute();
+            return ReturnValue.OK;
+        } catch (SQLException ex) {
+            switch (errorCode(ex)) {
+                case UNIQUE_VIOLATION:
+                    return ReturnValue.NOT_EXISTS;
+            }
             return ReturnValue.ERROR;
-        }
-        finally {
-            try {
-                pstmt.close();
-            } catch (SQLException e) {
-                return ReturnValue.ERROR
-            }
-            try {
-                connection.close();
-            } catch (SQLException e) {
-                return ReturnValue.ERROR;
-            }
+        } finally {
+            finish(statement);
+            closeConnection(connection);
         }
     }
-
-    public static ReturnValue updateUserNotPremium(Integer userId)
-    {
-        User cur = getUserProfile(userId);
-        if (!cur.getPremium()) {
-            return ReturnValue.ALREADY_EXISTS;
-        }
-        if (cur == User.badUser()) {
-            return ReturnValue.NOT_EXISTS;
-        }
-        Connection connection = DBConnector.getConnection();
-        PreparedStatement pstmt = null;
-        try {
-            pstmt = connection.prepareStatement(
-                    "UPDATE Users " +
-                            "SET premium = ? " +
-                            "where id = ?");
-            pstmt.setBoolean(1,0);
-            pstmt.setInt(1, userId);
-            int affectedRows = pstmt.executeUpdate();
-            System.out.println("changed " + affectedRows + " rows");
-        } catch (SQLException e) {
-            return ReturnValue.ERROR;
-        }
-        finally {
-            try {
-                pstmt.close();
-            } catch (SQLException e) {
-                return ReturnValue.ERROR
-            }
-            try {
-                connection.close();
-            } catch (SQLException e) {
-                return ReturnValue.ERROR;
-            }
-        }
+    public static ReturnValue updateUserPremium(Integer userId) {
+        return updateUserStatus(userId, true);
     }
 
-    public static ReturnValue addSong(Song song)
-    {
-        return null;
+    public static ReturnValue updateUserNotPremium(Integer userId) {
+        return updateUserStatus(userId, false);
+    }
+
+    public static ReturnValue addSong(Song song) {
+        Connection connection = DBConnector.getConnection();
+        PreparedStatement statement = prepareStatement(connection,
+                "INSERT INTO " + TABLE_SONG + " VALUES(?, ?, ?, ?)");
+        try {
+            statement.setInt(1, song.getId());
+            statement.setString(2, song.getName());
+            statement.setString(3, song.getGenre());
+            statement.setString(4, song.getCountry());
+            statement.execute();
+            return ReturnValue.OK;
+        } catch (SQLException ex) {
+            switch (errorCode(ex)) {
+                case UNIQUE_VIOLATION:
+                    return ReturnValue.ALREADY_EXISTS;
+                case NOT_NULL_VIOLATION:
+                case CHECK_VIOLATION:
+                    return ReturnValue.BAD_PARAMS;
+            }
+            return ReturnValue.ERROR;
+        } finally {
+            finish(statement);
+            closeConnection(connection);
+        }
     }
 
     public static Song getSong(Integer songId)
