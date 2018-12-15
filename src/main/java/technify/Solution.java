@@ -17,8 +17,10 @@ public class Solution {
     private static final String TABLE_SONG = "song";
     private static final String TABLE_PLAYLIST = "playlist";
 
+    private static final String TABLE_REL_FOLLOWS = "follows";
+    private static final String TABLE_REL_IN_PLAYLIST = "inplaylist";
 
-    private static PreparedStatement prepareStatement(Connection c, String sql) { //todo error to be returned
+    private static PreparedStatement prepareStatement(Connection c, String sql) {
         PreparedStatement pstmt;
         try {
             pstmt = c.prepareStatement(sql);
@@ -53,6 +55,15 @@ public class Solution {
         return null;
     }
 
+    /**
+     * Create all the tables needed for the database
+     * This functions creates the following tables:
+     * - user (User Entity)
+     * - song (Song Entity)
+     * - playlist (Playlist Entity)
+     * - follow (Relation, User - Playlist)
+     * - inPlaylist (Relation, Song - Playlist)
+     */
     public static void createTables() {
         Connection connection = DBConnector.getConnection();
         // Create User table
@@ -89,47 +100,90 @@ public class Solution {
                 "                   CHECK (id > 0)\n" +
                 ")");
 
+        PreparedStatement followsCreateStatement = prepareStatement(connection, "CREATE TABLE " + TABLE_REL_FOLLOWS +"\n" +
+                "(\n" +
+                "   userId INTEGER,\n" +
+                "   playlistId INTEGER,\n" +
+                "   UNIQUE(userId),\n" +
+                "   UNIQUE(playlistId),\n" +
+                "   FOREIGN KEY(userId) REFERENCES " + TABLE_USER + "(id) ON DELETE CASCADE,\n" +
+                "   FOREIGN KEY(playlistId) REFERENCES " + TABLE_PLAYLIST + "(id) ON DELETE CASCADE\n" +
+                ")");
+
+        PreparedStatement inPlaylistCreateStatement = prepareStatement(connection, "CREATE TABLE " + TABLE_REL_IN_PLAYLIST +"\n" +
+                "(\n" +
+                "   playlistId INTEGER,\n" +
+                "   songId INTEGER,\n" +
+                "   UNIQUE(playlistId),\n" +
+                "   UNIQUE(songId),\n" +
+                "   FOREIGN KEY(playlistId) REFERENCES " + TABLE_PLAYLIST + "(id) ON DELETE CASCADE,\n" +
+                "   FOREIGN KEY(songId) REFERENCES " + TABLE_SONG + "(id) ON DELETE CASCADE\n" +
+                ")");
+
         try {
             userCreateStatement.execute();
             songCreateStatement.execute();
             playlistCreateStatement.execute();
+            followsCreateStatement.execute();
+            inPlaylistCreateStatement.execute();
         } catch (SQLException ex) {
+            ex.printStackTrace(); // TODO Remove
+            // Handle Exception
+        } finally {
             finish(userCreateStatement);
             finish(songCreateStatement);
             finish(playlistCreateStatement);
+            finish(followsCreateStatement);
+            finish(inPlaylistCreateStatement);
             closeConnection(connection);
         }
     }
 
+    /**
+     * Clears all the database tables (removes all entries, leaving an empty table)
+     */
     public static void clearTables() {
         Connection connection = DBConnector.getConnection();
         // Create User table
         PreparedStatement userClearStatement = prepareStatement(connection,"DELETE FROM " + TABLE_USER);
         PreparedStatement songClearStatement = prepareStatement(connection,"DELETE FROM " + TABLE_SONG);
         PreparedStatement playlistClearStatement = prepareStatement(connection,"DELETE FROM " + TABLE_PLAYLIST);
+        PreparedStatement followsClearStatement = prepareStatement(connection,"DELETE FROM " + TABLE_REL_FOLLOWS);
+        PreparedStatement inPlaylistClearStatement = prepareStatement(connection,"DELETE FROM " + TABLE_REL_IN_PLAYLIST);
 
         try {
             userClearStatement.execute();
             songClearStatement.execute();
             playlistClearStatement.execute();
+            followsClearStatement.execute();
+            inPlaylistClearStatement.execute();
         } catch (SQLException ex) {
             ex.printStackTrace();
 
             finish(userClearStatement);
             finish(songClearStatement);
             finish(playlistClearStatement);
+            finish(followsClearStatement);
+            finish(inPlaylistClearStatement);
             closeConnection(connection);
         }
     }
 
+    /**
+     * Drops all the tables in the database
+     */
     public static void dropTables() {
         Connection connection = DBConnector.getConnection();
         // Create User table
         PreparedStatement userDropStatement = prepareStatement(connection,"DROP TABLE " + TABLE_USER);
         PreparedStatement songDropStatement = prepareStatement(connection,"DROP TABLE " + TABLE_SONG);
         PreparedStatement playlistDropStatement = prepareStatement(connection,"DROP TABLE " + TABLE_PLAYLIST);
+        PreparedStatement followsDropStatement = prepareStatement(connection,"DROP TABLE " + TABLE_REL_FOLLOWS);
+        PreparedStatement inPlaylistDropStatement = prepareStatement(connection,"DROP TABLE " + TABLE_REL_IN_PLAYLIST);
 
         try {
+            followsDropStatement.execute();
+            inPlaylistDropStatement.execute();
             userDropStatement.execute();
             songDropStatement.execute();
             playlistDropStatement.execute();
@@ -139,6 +193,8 @@ public class Solution {
             finish(userDropStatement);
             finish(songDropStatement);
             finish(playlistDropStatement);
+            finish(followsDropStatement);
+            finish(inPlaylistDropStatement);
             closeConnection(connection);
         }
     }
@@ -304,8 +360,7 @@ public class Solution {
         }
     }
 
-    public static ReturnValue updateSongName(Song song)
-    {
+    public static ReturnValue updateSongName(Song song) {
         Connection connection = DBConnector.getConnection();
         PreparedStatement statement = prepareStatement(connection,
                 "UPDATE " + TABLE_SONG + " SET name = ? WHERE id = ?");
@@ -315,8 +370,7 @@ public class Solution {
             return statement.executeUpdate() == 1 ? ReturnValue.OK: ReturnValue.NOT_EXISTS;
         } catch (SQLException ex) {
             switch (errorCode(ex)) {
-                case UNIQUE_VIOLATION:
-                    return ReturnValue.NOT_EXISTS;
+                case NOT_NULL_VIOLATION:
                 case CHECK_VIOLATION:
                     return ReturnValue.BAD_PARAMS;
             }
@@ -325,14 +379,12 @@ public class Solution {
             finish(statement);
             closeConnection(connection);
         }
-        return null;
     }
 
-    public static ReturnValue addPlaylist(Playlist playlist)
-    {
+    public static ReturnValue addPlaylist(Playlist playlist) {
         Connection connection = DBConnector.getConnection();
         PreparedStatement statement = prepareStatement(connection,
-                "INSERT INTO " + TABLE_PLAYLIST + " VALUES(?, ?, ?, ?)");
+                "INSERT INTO " + TABLE_PLAYLIST + " VALUES(?, ?, ?)");
         try {
             statement.setInt(1, playlist.getId());
             statement.setString(2, playlist.getGenre());
@@ -354,8 +406,7 @@ public class Solution {
         }
     }
 
-    public static Playlist getPlaylist(Integer playlistId)
-    {
+    public static Playlist getPlaylist(Integer playlistId) {
         Connection connection = DBConnector.getConnection();
         PreparedStatement statement = prepareStatement(connection,
                 "SELECT * FROM " + TABLE_PLAYLIST + " WHERE id = ?");
@@ -379,8 +430,7 @@ public class Solution {
         return playlist;
     }
 
-    public static ReturnValue deletePlaylist(Playlist playlist)
-    {
+    public static ReturnValue deletePlaylist(Playlist playlist) {
         Connection connection = DBConnector.getConnection();
         PreparedStatement statement = prepareStatement(connection,
                 "DELETE FROM " + TABLE_PLAYLIST + " WHERE id = ?");
@@ -395,8 +445,7 @@ public class Solution {
         }
     }
 
-    public static ReturnValue updatePlaylist(Playlist playlist)
-    {
+    public static ReturnValue updatePlaylist(Playlist playlist) {
         Connection connection = DBConnector.getConnection();
         PreparedStatement statement = prepareStatement(connection,
                 "UPDATE " + TABLE_PLAYLIST + " SET description = ? WHERE id = ?");
@@ -408,6 +457,7 @@ public class Solution {
             switch (errorCode(ex)) {
                 case UNIQUE_VIOLATION:
                     return ReturnValue.NOT_EXISTS;
+                case NOT_NULL_VIOLATION:
                 case CHECK_VIOLATION:
                     return ReturnValue.BAD_PARAMS;
             }
@@ -416,23 +466,6 @@ public class Solution {
             finish(statement);
             closeConnection(connection);
         }
-        return null;
-    }
-
-    public static ReturnValue addSongToPlaylist(Integer songid, Integer playlistId){
-        return null;
-    }
-
-    public static ReturnValue removeSongFromPlaylist(Integer songid, Integer playlistId){
-        return null;
-    }
-
-    public static ReturnValue followPlaylist(Integer userId, Integer playlistId){
-        return null;
-    }
-
-    public static ReturnValue stopFollowPlaylist(Integer userId, Integer playlistId){
-        return null;
     }
 
     public static ReturnValue songPlay(Integer songId, Integer times){
@@ -455,10 +488,67 @@ public class Solution {
         }
     }
 
+    public static ReturnValue addSongToPlaylist(Integer songid, Integer playlistId){
+        Connection connection = DBConnector.getConnection();
+        PreparedStatement statement = prepareStatement(connection, "INSERT INTO " + TABLE_REL_IN_PLAYLIST + "\n" +
+                "(\n" +
+                    "SELECT P.id, S.id FROM\n" +
+                    TABLE_SONG + " S, " + TABLE_PLAYLIST + " P\n" +
+                    "WHERE P.id = ? AND S.id = ? AND P.genre = S.genre\n" +
+                ")"
+        );
+
+        try {
+            statement.setInt(1, playlistId);
+            statement.setInt(2, songid);
+            return statement.executeUpdate() == 1 ? ReturnValue.OK : ReturnValue.NOT_EXISTS;
+        } catch (SQLException ex) {
+            ex.printStackTrace();
+            switch (errorCode(ex)) {
+                case FOREIGN_KEY_VIOLATION:
+                    return ReturnValue.NOT_EXISTS;
+                case UNIQUE_VIOLATION:
+                    return ReturnValue.ALREADY_EXISTS;
+                case CHECK_VIOLATION:
+                    return ReturnValue.BAD_PARAMS;
+            }
+            return ReturnValue.ERROR;
+        } finally {
+            finish(statement);
+            closeConnection(connection);
+        }
+    }
+
+    public static ReturnValue removeSongFromPlaylist(Integer songid, Integer playlistId){
+        Connection connection = DBConnector.getConnection();
+        PreparedStatement statement = prepareStatement(connection,
+                "DELETE FROM " + TABLE_REL_IN_PLAYLIST + " WHERE playlistId = ?, songId = ?"
+        );
+
+        try {
+            statement.setInt(1, playlistId);
+            statement.setInt(2, songid);
+            return statement.executeUpdate() == 1 ? ReturnValue.OK : ReturnValue.NOT_EXISTS;
+        } catch (SQLException ex) {
+            return ReturnValue.ERROR;
+        } finally {
+            finish(statement);
+            closeConnection(connection);
+        }
+    }
+
+    public static ReturnValue followPlaylist(Integer userId, Integer playlistId){
+        return null;
+    }
+
+    public static ReturnValue stopFollowPlaylist(Integer userId, Integer playlistId){
+        return null;
+    }
+
     public static Integer getPlaylistTotalPlayCount(Integer playlistId){
         Connection connection = DBConnector.getConnection();
         PreparedStatement statement = prepareStatement(connection,
-                "SELECT COUNT(songid) FROM" + TABLE_INPLAYLIST + " WHERE playlistid = ?");
+                "SELECT COUNT(songid) FROM " + TABLE_REL_IN_PLAYLIST + " WHERE playlistid = ?");
         try {
             statement.setInt(1, playlistId);
             ResultSet results = statement.executeQuery();
@@ -474,7 +564,7 @@ public class Solution {
     public static Integer getPlaylistFollowersCount(Integer playlistId){
         Connection connection = DBConnector.getConnection();
         PreparedStatement statement = prepareStatement(connection,
-                "SELECT COUNT(userid) FROM" + TABLE_FOLLOW + " WHERE playlistid = ?");
+                "SELECT COUNT(userid) FROM " + TABLE_REL_FOLLOWS + " WHERE playlistid = ?");
         try {
             statement.setInt(1, playlistId);
             ResultSet results = statement.executeQuery();
@@ -492,14 +582,10 @@ public class Solution {
         PreparedStatement statement = prepareStatement(connection,
                 "SELECT songid FROM" + TABLE_SONG + "WHERE songid = (" +
                         "SELECT MAX(songid) FROM (" +
-                            "SELECT songid, COUNT(playlistid) AS count2 FROM" +
-                            TABLE_INPLAYLIST +
-                            "GROUP BY songid " +
-                            "HAVING count2 = ("
+                            "SELECT songid, COUNT(playlistid) AS count2 FROM" + TABLE_REL_IN_PLAYLIST + "GROUP BY songid " +
+                            "HAVING count2 = (" +
                                 "SELECT MAX(count) FROM (" +
-                                    "SELECT songid, COUNT(playlistid) AS count FROM" +
-                                    TABLE_INPLAYLIST +
-                                    " GROUP BY songid" +
+                                    "SELECT songid, COUNT(playlistid) AS count FROM " + TABLE_REL_IN_PLAYLIST + " GROUP BY songid" +
                                 ")" +
                             ")" +
                         ")" +
@@ -520,12 +606,12 @@ public class Solution {
         PreparedStatement statement = prepareStatement(connection,
                 "SELECT MAX(playlistid) FROM (" +
                         "SELECT IP.playlistid, SUM(S.playCount) AS sum2 FROM " + TABLE_SONG + " S, "
-                        + TABLE_INPLAYLIST " IP" +
+                        + TABLE_REL_IN_PLAYLIST + " IP" +
                         " GROUP BY IP.playlistid " +
-                        " HAVING sum2 = ("
+                        " HAVING sum2 = (" +
                             "SELECT MAX(sum) As max FROM (" +
                                     "SELECT SUM(S.playCount) AS sum FROM " + TABLE_SONG + " S, "
-                                    + TABLE_INPLAYLIST " IP" +
+                                    + TABLE_REL_IN_PLAYLIST + " IP" +
                                     " GROUP BY IP.playlistid " +
                             ")" +
                         ")" +
