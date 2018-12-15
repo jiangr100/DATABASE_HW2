@@ -199,14 +199,9 @@ public class Solution {
                 "DELETE FROM " + TABLE_USER + " WHERE id = ?");
         try {
             statement.setInt(1, user.getId());
-            statement.execute();
-            return ReturnValue.OK;
+            int affectedRows = statement.executeUpdate();
+            return affectedRows == 1 ? ReturnValue.OK : ReturnValue.NOT_EXISTS;
         } catch (SQLException ex) {
-            switch (errorCode(ex)) {
-                case CHECK_VIOLATION:
-                case UNIQUE_VIOLATION:
-                    return ReturnValue.NOT_EXISTS;
-            }
             return ReturnValue.ERROR;
         } finally {
             finish(statement);
@@ -224,8 +219,8 @@ public class Solution {
         try {
             statement.setBoolean(1, premium);
             statement.setInt(2, userId);
-            statement.execute();
-            return ReturnValue.OK;
+            int affectedRows = statement.executeUpdate();
+            return affectedRows == 1 ? ReturnValue.OK: ReturnValue.NOT_EXISTS;
         } catch (SQLException ex) {
             switch (errorCode(ex)) {
                 case UNIQUE_VIOLATION:

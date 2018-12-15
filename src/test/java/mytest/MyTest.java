@@ -82,6 +82,7 @@ public class MyTest {
         assertEquals(Solution.deleteUser(User.badUser()), NOT_EXISTS);
         assertEquals(Solution.deleteUser(user1queried), OK);
         assertEquals(Solution.deleteUser(user1queried), NOT_EXISTS);
+        assertEquals(Solution.deleteUser(user2queried), OK);
         assertEquals(Solution.deleteUser(user3), NOT_EXISTS);
     }
 }
