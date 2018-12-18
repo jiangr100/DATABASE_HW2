@@ -63,6 +63,12 @@ public class Solution {
      * - playlist (Playlist Entity)
      * - follow (Relation, User - Playlist)
      * - inPlaylist (Relation, Song - Playlist)
+     * 
+     * And views:
+     * - CountPlaylistSongs(count)
+     * - SumPlaylistPlayCount(sum, playlistId)
+     * - SimilarUsers(id1, id2)
+     * - PlaylistFollowers(playlistId, count)
      */
     public static void createTables() {
         Connection connection = DBConnector.getConnection();
