@@ -12,22 +12,24 @@ public class Example {
 
     public static void main(String[] args) {
 
-        javaStringExample();
-        arrayListExample();
-        dropTable();
-        System.out.println("Creating hello_world Table");
-        createTable();
-        selectFromTable();
-        System.out.println("inserting data into table");
-        insertIntoTable();
-        selectFromTable();
-        System.out.println("updating data in table");
-        updateTable();
-        selectFromTable();
-        System.out.println("deleting data from table");
-        deleteFromTable();
-        selectFromTable();
-        dropTable();
+        Solution.createTables();
+
+//        javaStringExample();
+//        arrayListExample();
+//        dropTable();
+//        System.out.println("Creating hello_world Table");
+//        createTable();
+//        selectFromTable();
+//        System.out.println("inserting data into table");
+//        insertIntoTable();
+//        selectFromTable();
+//        System.out.println("updating data in table");
+//        updateTable();
+//        selectFromTable();
+//        System.out.println("deleting data from table");
+//        deleteFromTable();
+//        selectFromTable();
+//        dropTable();
 
 
     }

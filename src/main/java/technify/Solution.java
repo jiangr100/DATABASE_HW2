@@ -118,12 +118,45 @@ public class Solution {
                 "   FOREIGN KEY(songId) REFERENCES " + TABLE_SONG + "(id) ON DELETE CASCADE\n" +
                 ")");
 
+        PreparedStatement countPlaylistSongsView = prepareStatement(connection,
+                "CREATE VIEW CountPlaylistSongs AS (SELECT COUNT(playlistId) AS count FROM " + TABLE_REL_IN_PLAYLIST + " GROUP BY songId)");
+
+        PreparedStatement sumPlaylistPlayCountView = prepareStatement(connection,
+                "CREATE VIEW SumPlaylistPlayCount AS (" +
+                            "SELECT SUM(S.playCount) AS sum, I.playlistId FROM\n" + TABLE_REL_IN_PLAYLIST + " I, " + TABLE_SONG + " S\n" +
+                            "WHERE I.songId = S.id\n" +
+                            "GROUP BY I.playlistId\n" +
+                        ")");
+
+        PreparedStatement similarUsersView = prepareStatement(connection,
+                "CREATE VIEW SimilarUsers AS (\n" +
+                        "SELECT U1.id AS id1, U2.id AS id2\n" +
+                        "FROM " + TABLE_USER + " U1, " + TABLE_USER + " U2, " + TABLE_REL_FOLLOWS + " Follows1, " + TABLE_REL_FOLLOWS + " Follows2\n" +
+                        "WHERE U1.id != U2.id AND Follows1.playlistId = Follows2.playlistId AND Follows1.userId = u1.id AND Follows2.userId = u2.id\n" +
+                        "GROUP BY (U1.id, U2.id) HAVING 4 * COUNT(U1.id) >= 3 * (SELECT COUNT(*) FROM " + TABLE_REL_FOLLOWS +" WHERE userId = u2.id)" +
+                        ")"
+                );
+
+        PreparedStatement countPlaylistFollowers = prepareStatement(connection,
+                "CREATE VIEW PlaylistFollowers AS (\n" +
+                        "SELECT playlistId, COUNT(userId) FROM " + TABLE_REL_FOLLOWS + "\n" +
+                        "GROUP BY playlistId\n" +
+                        ")"
+                );
+
         try {
             userCreateStatement.execute();
             songCreateStatement.execute();
             playlistCreateStatement.execute();
             followsCreateStatement.execute();
             inPlaylistCreateStatement.execute();
+
+            // Create Views
+            countPlaylistSongsView.execute();
+            sumPlaylistPlayCountView.execute();
+            similarUsersView.execute();
+            countPlaylistFollowers.execute();
+
         } catch (SQLException ex) {
             ex.printStackTrace(); // TODO Remove
             // Handle Exception
@@ -179,7 +212,18 @@ public class Solution {
         PreparedStatement followsDropStatement = prepareStatement(connection,"DROP TABLE " + TABLE_REL_FOLLOWS);
         PreparedStatement inPlaylistDropStatement = prepareStatement(connection,"DROP TABLE " + TABLE_REL_IN_PLAYLIST);
 
+        PreparedStatement countPlaylistSongsDropView = prepareStatement(connection, "DROP VIEW CountPlaylistSongs");
+        PreparedStatement sumPlaylistsPlayCountDropView = prepareStatement(connection, "DROP VIEW SumPlaylistPlayCount");
+        PreparedStatement similarUsersDropView = prepareStatement(connection, "DROP VIEW SimilarUsers");
+        PreparedStatement playlistFollowersDropView = prepareStatement(connection, "DROP VIEW PlaylistFollowers");
+
         try {
+            // Drop Views first, because other tables depend on them
+            countPlaylistSongsDropView.execute();
+            sumPlaylistsPlayCountDropView.execute();
+            similarUsersDropView.execute();
+            playlistFollowersDropView.execute();
+
             followsDropStatement.execute();
             inPlaylistDropStatement.execute();
             userDropStatement.execute();
@@ -582,8 +626,7 @@ public class Solution {
     public static Integer getPlaylistTotalPlayCount(Integer playlistId){
         Connection connection = DBConnector.getConnection();
         PreparedStatement statement = prepareStatement(connection,
-                "SELECT SUM(playCount) FROM " + TABLE_SONG + "\n" +
-                        "WHERE id IN (SELECT songId FROM " + TABLE_REL_IN_PLAYLIST + " WHERE playlistId = ?)");
+                "SELECT * FROM SumPlaylistPlayCount WHERE playlistId = ?");
         try {
             statement.setInt(1, playlistId);
             ResultSet results = statement.executeQuery();
@@ -612,19 +655,16 @@ public class Solution {
         }
     }
 
-    public static String getMostPopularSong(){
+    public static String getMostPopularSong() {
         Connection connection = DBConnector.getConnection();
         PreparedStatement statement = prepareStatement(connection,
-                "SELECT songid FROM" + TABLE_SONG + "WHERE songid = (" +
-                        "SELECT MAX(songid) FROM (" +
-                            "SELECT songid, COUNT(playlistid) AS count2 FROM" + TABLE_REL_IN_PLAYLIST + "GROUP BY songid " +
-                            "HAVING count2 = (" +
-                                "SELECT MAX(count) FROM (" +
-                                    "SELECT songid, COUNT(playlistid) AS count FROM " + TABLE_REL_IN_PLAYLIST + " GROUP BY songid" +
-                                ")" +
-                            ")" +
-                        ")" +
-                     ")");
+                "SELECT name FROM " + TABLE_SONG + " WHERE id = (\n" +
+                        "SELECT MAX(songId) FROM (\n" +
+                            "SELECT songId FROM " + TABLE_REL_IN_PLAYLIST + "\n" +
+                            "GROUP BY songId\n" +
+                            "HAVING COUNT(playlistId) = (SELECT MAX(count) FROM CountPlaylistSongs)\n" +
+                        ") AS SongPlaylistCount\n" +
+                    ")");
         try {
             ResultSet results = statement.executeQuery();
             return results.next() ? results.getString(1) : "No songs";
@@ -639,23 +679,18 @@ public class Solution {
     public static Integer getMostPopularPlaylist(){
         Connection connection = DBConnector.getConnection();
         PreparedStatement statement = prepareStatement(connection,
-                "SELECT MAX(playlistid) FROM (" +
-                        "SELECT IP.playlistid, SUM(S.playCount) AS sum2 FROM " + TABLE_SONG + " S, "
-                        + TABLE_REL_IN_PLAYLIST + " IP" +
-                        " GROUP BY IP.playlistid " +
-                        " HAVING sum2 = (" +
-                            "SELECT MAX(sum) As max FROM (" +
-                                    "SELECT SUM(S.playCount) AS sum FROM " + TABLE_SONG + " S, "
-                                    + TABLE_REL_IN_PLAYLIST + " IP" +
-                                    " GROUP BY IP.playlistid " +
-                            ")" +
-                        ")" +
-                        ")" );
+
+                "SELECT MAX(IP.playlistId), IP.playlistId FROM " + TABLE_SONG + " S, " + TABLE_REL_IN_PLAYLIST + " IP\n" +
+                        "WHERE S.id = IP.songId\n" +
+                        "GROUP BY IP.playlistId\n" +
+                        "HAVING SUM(S.playCount) = (SELECT MAX(sum) FROM SumPlaylistPlayCount)\n" +
+                        "ORDER BY IP.playlistId DESC");
         try {
             ResultSet results = statement.executeQuery();
             return results.next() ? results.getInt(1) : 0;
         } catch (SQLException ex) {
-            return null;
+            ex.printStackTrace();
+            return 0;
         } finally {
             finish(statement);
             closeConnection(connection);
@@ -665,53 +700,35 @@ public class Solution {
     public static ArrayList<Integer> hottestPlaylistsOnTechnify(){
         Connection connection = DBConnector.getConnection();
         PreparedStatement statement = prepareStatement(connection,
-                "SELECT T.playlist, " +
-                        "( SELECT " +
-                            "( SELECT COUNT(songid) AS count FROM " + TABLE_REL_IN_PLAYLIST + "\n" +
-                                "WHERE playlistid = T.playlist) / " +
-                            "( SELECT SUM(S.playCount) AS sum FROM " + TABLE_SONG + " S, "
-                            + TABLE_REL_IN_PLAYLIST + " IP" +
-                            " WHERE playlistid = T.playlist) ) AS rating" +
-                        " FROM " + TABLE_PLAYLIST + " T " +
-                        " ORDER BY rating DESC T.playlist ASC LIMIT 10" );
+                "SELECT I.playlistId, (S.sum / COUNT(I.songId)) AS rating FROM SumPlaylistPlayCount S, " + TABLE_REL_IN_PLAYLIST + " I\n" +
+                        "WHERE S.playlistId = I.playlistId\n" +
+                        "GROUP BY I.playlistId, S.sum\n" +
+                        "ORDER BY rating DESC, I.playlistId ASC LIMIT 10");
+
         try {
             ResultSet results = statement.executeQuery();
             int i = 0;
             ArrayList<Integer> Arr = new ArrayList<>();
-            while (results.next() && i < 10) {
+            while (results.next() && i++ < 10) {
                 Arr.add(results.getInt(1));
-                i++;
             }
             return Arr;
         } catch (SQLException ex) {
-            return null;
+            ex.printStackTrace();
+            return new ArrayList<>();
         } finally {
             finish(statement);
             closeConnection(connection);
         }
     }
 
+    // TODO Test
     public static ArrayList<Integer> getSimilarUsers(Integer userId){
         Connection connection = DBConnector.getConnection();
         PreparedStatement statement = prepareStatement(connection,
-                "SELECT uid, (COUNT(pl) / " +
-                        " COUNT(SELECT playlistid FROM " + TABLE_REL_FOLLOWS + " WHERE userid = ?) AS persentage)" +
-                        " FROM (" +
-                            "SELECT U.id AS uid, F.playlistid AS pl FROM " +
-                            TABLE_USER + " U, " + TABLE_REL_FOLLOWS + " F " +
-                            "WHERE U.id != ? AND U.id = F.userid AND " +
-                                "F.playlistid in (" +
-                                    "SELECT playlistid FROM " +
-                                    TABLE_REL_FOLLOWS + "\n" +
-                                    "WHERE userid = ? )" +
-                            ") " +
-                        " GROUP BY uid" +
-                        " HAVING persentage >= 75" +
-                        " ORDER BY uid ASC LIMIT 10");
+                "SELECT id2 FROM SimilarUsers WHERE id1 = ? ORDER BY id2 ASC");
         try {
             statement.setInt(1, userId);
-            statement.setInt(2, userId);
-            statement.setInt(3, userId);
             ResultSet results = statement.executeQuery();
             int i = 0;
             ArrayList<Integer> Arr = new ArrayList<Integer>();
@@ -728,17 +745,81 @@ public class Solution {
         }
     }
 
+    // TODO Test
+    public static ArrayList<Integer> getPlaylistRecommendation(Integer userId) {
+        Connection connection = DBConnector.getConnection();
+        PreparedStatement statement = prepareStatement(connection,
+                "SELECT DISTINCT Follows.playlistId, PF.count FROM " + TABLE_USER + " U, " + TABLE_REL_FOLLOWS + " Follows, SimilarUsers SU, PlaylistFollowers PF\n" +
+                        "WHERE SU.id1 = ? AND SU.id2 = Follows.userId\n" +
+                            "AND SU.id1 != Follows.userId\n" +
+                            "AND Follows.playlistId NOT IN (SELECT playlistId FROM " + TABLE_REL_FOLLOWS + " WHERE userId = ?)\n" +
+                            "AND PF.playlistId = Follows.playlistId\n" +
+                        "ORDER BY PF.count DESC, Follows.playlistId ASC\n");
+        try {
+            statement.setInt(1, userId);
+            statement.setInt(2, userId);
+            ResultSet results = statement.executeQuery();
+            ArrayList<Integer> resultList = new ArrayList<>();
+            while (results.next()) resultList.add(results.getInt(1));
+            return resultList;
+        } catch (SQLException ex) {
+            ex.printStackTrace();
+            return new ArrayList<>();
+        } finally {
+            finish(statement);
+            closeConnection(connection);
+        }
+    }
+
+    // TODO Test
     public static ArrayList<Integer> getTopCountryPlaylists(Integer userId) {
-        return null;
+        Connection connection = DBConnector.getConnection();
+        PreparedStatement statement = prepareStatement(connection,
+                "SELECT P.playlistId FROM " + TABLE_PLAYLIST + " P, SumPlaylistPlayCount PC, " + TABLE_USER + " U, " + TABLE_REL_IN_PLAYLIST + " IP\n" +
+                        "WHERE IP.playlistId = P.id\n" +
+                            "AND PC.playlistId = IP.playlistId\n" +
+                            "AND U.country IN (SELECT country FROM " + TABLE_SONG + " WHERE id = IP.songId)\n" +
+                            "AND U.id = ? AND U.premium = true\n" +
+                        "ORDER BY PC.sum DESC LIMIT 10");
+        try {
+            statement.setInt(1, userId);
+            ResultSet results = statement.executeQuery();
+            ArrayList<Integer> resultList = new ArrayList<>();
+            while (results.next()) resultList.add(results.getInt(1));
+            return resultList;
+        } catch (SQLException ex) {
+            return new ArrayList<>();
+        } finally {
+            finish(statement);
+            closeConnection(connection);
+        }
     }
 
-    public static ArrayList<Integer> getPlaylistRecommendation (Integer userId){
-
-        return null;
-    }
-
-    public static ArrayList<Integer> getSongsRecommendationByGenre(Integer userId, String genre){
-        return null;
+    // TODO Test
+    public static ArrayList<Integer> getSongsRecommendationByGenre(Integer userId, String genre) {
+        Connection connection = DBConnector.getConnection();
+        PreparedStatement statement = prepareStatement(connection,
+                "SELECT S.id FROM " + TABLE_SONG + " S, " + TABLE_REL_FOLLOWS + " Follows, " + TABLE_REL_IN_PLAYLIST + " IP, " + TABLE_USER + " U\n" +
+                        "WHERE S.genre = ?\n" +
+                            "AND U.id = ?\n" +
+                            "AND S.id = IP.songId\n" +
+                            "AND U.id = Follows.userId\n" +
+                            "AND Follows.userId = U.id\n" +
+                            "AND IP.playlistId != Follows.playlistId\n" +
+                        "ORDER BY S.playCount DESC LIMIT 10");
+        try {
+            statement.setString(1, genre);
+            statement.setInt(2, userId);
+            ResultSet results = statement.executeQuery();
+            ArrayList<Integer> resultList = new ArrayList<>();
+            while (results.next()) resultList.add(results.getInt(1));
+            return resultList;
+        } catch (SQLException ex) {
+            return new ArrayList<>();
+        } finally {
+            finish(statement);
+            closeConnection(connection);
+        }
     }
 
 
