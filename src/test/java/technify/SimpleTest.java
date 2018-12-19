@@ -15,11 +15,11 @@ public class SimpleTest extends  AbstractTest {
     createTables();
     }
 
-    @Test
+    /*@Test
     public void testClearTables()
     {
         clearTables();
-    }
+    }*/
 
 
     @Test

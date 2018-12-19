@@ -69,6 +69,7 @@ public class Solution {
      * - SumPlaylistPlayCount(sum, playlistId)
      * - SimilarUsers(id1, id2)
      * - PlaylistFollowers(playlistId, count)
+     * - CountriesInPlaylist(pid, country)
      */
     public static void createTables() {
         Connection connection = DBConnector.getConnection();
@@ -129,7 +130,7 @@ public class Solution {
 
         PreparedStatement sumPlaylistPlayCountView = prepareStatement(connection,
                 "CREATE VIEW SumPlaylistPlayCount AS (" +
-                            "SELECT SUM(S.playCount) AS sum, I.playlistId FROM\n" + TABLE_REL_IN_PLAYLIST + " I, " + TABLE_SONG + " S\n" +
+                            "SELECT SUM(S.playCount) AS sum, I.playlistId FROM " + TABLE_REL_IN_PLAYLIST + " I, " + TABLE_SONG + " S\n" +
                             "WHERE I.songId = S.id\n" +
                             "GROUP BY I.playlistId\n" +
                         ")");
@@ -139,7 +140,8 @@ public class Solution {
                         "SELECT U1.id AS id1, U2.id AS id2\n" +
                         "FROM " + TABLE_USER + " U1, " + TABLE_USER + " U2, " + TABLE_REL_FOLLOWS + " Follows1, " + TABLE_REL_FOLLOWS + " Follows2\n" +
                         "WHERE U1.id != U2.id AND Follows1.playlistId = Follows2.playlistId AND Follows1.userId = u1.id AND Follows2.userId = u2.id\n" +
-                        "GROUP BY (U1.id, U2.id) HAVING 4 * COUNT(U1.id) >= 3 * (SELECT COUNT(*) FROM " + TABLE_REL_FOLLOWS +" WHERE userId = u2.id)" +
+                        "GROUP BY (U1.id, U2.id) " +
+                        "HAVING 4 * COUNT(U1.id) >= 3 * (SELECT COUNT(*) FROM " + TABLE_REL_FOLLOWS +" WHERE userId = u2.id)" +
                         ")"
                 );
 
@@ -149,6 +151,23 @@ public class Solution {
                         "GROUP BY playlistId\n" +
                         ")"
                 );
+
+        PreparedStatement countriesInPlaylist = prepareStatement(connection,
+                "CREATE VIEW CountriesInPlaylist AS (\n" +
+                        "SELECT DISTINCT P.playlistId AS pid, S.country AS country FROM " + TABLE_SONG + " S, " + TABLE_REL_IN_PLAYLIST + " P \n" +
+                        "WHERE S.id IN (" + "SELECT songId FROM " + TABLE_REL_IN_PLAYLIST + " WHERE playlistId = P.playlistId)\n" +
+                        ")"
+        );
+
+        PreparedStatement songsOfUserFollows = prepareStatement(connection,
+                "CREATE VIEW SongsOfUsers AS (\n" +
+                        "SELECT U.id AS uid, S.id AS sid FROM " + TABLE_SONG + " S, " + TABLE_USER + " U, " +
+                            TABLE_REL_IN_PLAYLIST + " IP, " + TABLE_REL_FOLLOWS + " F "+
+                        "WHERE U.id = F.userId " +
+                            "AND S.id = IP.songId " +
+                            "AND F.playlistId = IP.playlistId " +
+                        ")"
+        );
 
         try {
             userCreateStatement.execute();
@@ -162,6 +181,8 @@ public class Solution {
             sumPlaylistPlayCountView.execute();
             similarUsersView.execute();
             countPlaylistFollowers.execute();
+            countriesInPlaylist.execute();
+            songsOfUserFollows.execute();
 
         } catch (SQLException ex) {
             ex.printStackTrace(); // TODO Remove
@@ -222,6 +243,8 @@ public class Solution {
         PreparedStatement sumPlaylistsPlayCountDropView = prepareStatement(connection, "DROP VIEW SumPlaylistPlayCount");
         PreparedStatement similarUsersDropView = prepareStatement(connection, "DROP VIEW SimilarUsers");
         PreparedStatement playlistFollowersDropView = prepareStatement(connection, "DROP VIEW PlaylistFollowers");
+        PreparedStatement countriesInPlaylistDropView = prepareStatement(connection, "DROP VIEW CountriesInPlaylist");
+        PreparedStatement songsOfUsersDropView = prepareStatement(connection, "DROP VIEW SongsOfUsers");
 
         try {
             // Drop Views first, because other tables depend on them
@@ -229,6 +252,8 @@ public class Solution {
             sumPlaylistsPlayCountDropView.execute();
             similarUsersDropView.execute();
             playlistFollowersDropView.execute();
+            countriesInPlaylistDropView.execute();
+            songsOfUsersDropView.execute();
 
             followsDropStatement.execute();
             inPlaylistDropStatement.execute();
@@ -713,12 +738,9 @@ public class Solution {
 
         try {
             ResultSet results = statement.executeQuery();
-            int i = 0;
-            ArrayList<Integer> Arr = new ArrayList<>();
-            while (results.next() && i++ < 10) {
-                Arr.add(results.getInt(1));
-            }
-            return Arr;
+            ArrayList<Integer> resultList = new ArrayList<>();
+            while (results.next()) resultList.add(results.getInt(1));
+            return resultList;
         } catch (SQLException ex) {
             ex.printStackTrace();
             return new ArrayList<>();
@@ -728,7 +750,6 @@ public class Solution {
         }
     }
 
-    // TODO Test
     public static ArrayList<Integer> getSimilarUsers(Integer userId){
         Connection connection = DBConnector.getConnection();
         PreparedStatement statement = prepareStatement(connection,
@@ -736,13 +757,9 @@ public class Solution {
         try {
             statement.setInt(1, userId);
             ResultSet results = statement.executeQuery();
-            int i = 0;
-            ArrayList<Integer> Arr = new ArrayList<Integer>();
-            while (results.next() && i < 10) {
-                Arr.add(results.getInt(1));
-                i++;
-            }
-            return Arr;
+            ArrayList<Integer> resultList = new ArrayList<>();
+            while (results.next()) resultList.add(results.getInt(1));
+            return resultList;
         } catch (SQLException ex) {
             return null;
         } finally {
@@ -751,7 +768,6 @@ public class Solution {
         }
     }
 
-    // TODO Test
     public static ArrayList<Integer> getPlaylistRecommendation(Integer userId) {
         Connection connection = DBConnector.getConnection();
         PreparedStatement statement = prepareStatement(connection,
@@ -760,7 +776,7 @@ public class Solution {
                             "AND SU.id1 != Follows.userId\n" +
                             "AND Follows.playlistId NOT IN (SELECT playlistId FROM " + TABLE_REL_FOLLOWS + " WHERE userId = ?)\n" +
                             "AND PF.playlistId = Follows.playlistId\n" +
-                        "ORDER BY PF.count DESC, Follows.playlistId ASC\n");
+                        "ORDER BY PF.count DESC, Follows.playlistId ASC LIMIT 5\n");
         try {
             statement.setInt(1, userId);
             statement.setInt(2, userId);
@@ -781,11 +797,11 @@ public class Solution {
     public static ArrayList<Integer> getTopCountryPlaylists(Integer userId) {
         Connection connection = DBConnector.getConnection();
         PreparedStatement statement = prepareStatement(connection,
-                "SELECT P.playlistId FROM " + TABLE_PLAYLIST + " P, SumPlaylistPlayCount PC, " + TABLE_USER + " U, " + TABLE_REL_IN_PLAYLIST + " IP\n" +
-                        "WHERE IP.playlistId = P.id\n" +
-                            "AND PC.playlistId = IP.playlistId\n" +
-                            "AND U.country IN (SELECT country FROM " + TABLE_SONG + " WHERE id = IP.songId)\n" +
-                            "AND U.id = ? AND U.premium = true\n" +
+                "SELECT P.id FROM " + TABLE_PLAYLIST + " P, SumPlaylistPlayCount PC, " + TABLE_USER + " U, " + TABLE_REL_IN_PLAYLIST + " IP\n" +
+                        "WHERE IP.playlistId = P.id " +
+                            "AND PC.playlistId = IP.playlistId " +
+                            "AND U.country IN (SELECT country FROM CountriesInPlaylist WHERE pid = IP.playlistId) " +
+                            "AND U.id = ? AND U.premium = true " +
                         "ORDER BY PC.sum DESC LIMIT 10");
         try {
             statement.setInt(1, userId);
@@ -801,17 +817,13 @@ public class Solution {
         }
     }
 
-    // TODO Test
     public static ArrayList<Integer> getSongsRecommendationByGenre(Integer userId, String genre) {
         Connection connection = DBConnector.getConnection();
         PreparedStatement statement = prepareStatement(connection,
-                "SELECT S.id FROM " + TABLE_SONG + " S, " + TABLE_REL_FOLLOWS + " Follows, " + TABLE_REL_IN_PLAYLIST + " IP, " + TABLE_USER + " U\n" +
-                        "WHERE S.genre = ?\n" +
-                            "AND U.id = ?\n" +
-                            "AND S.id = IP.songId\n" +
-                            "AND U.id = Follows.userId\n" +
-                            "AND Follows.userId = U.id\n" +
-                            "AND IP.playlistId != Follows.playlistId\n" +
+                "SELECT S.id FROM " + TABLE_SONG + " S, " + TABLE_USER + " U\n" +
+                        "WHERE S.genre = ? " +
+                            "AND U.id = ? " +
+                            "AND S.id NOT IN (SELECT sid FROM SongsOfUsers WHERE uid = U.id) \n" +
                         "ORDER BY S.playCount DESC LIMIT 10");
         try {
             statement.setString(1, genre);
