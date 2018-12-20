@@ -10,7 +10,7 @@ import static technify.business.ReturnValue.*;
 
 
 public class BasicAPITests extends AbstractTest {
-    /*@Test
+    @Test
     public void songPlayTest() {
 
         ReturnValue res;
@@ -59,9 +59,9 @@ public class BasicAPITests extends AbstractTest {
 
         res = Solution.followPlaylist(101, 10);
         assertEquals(NOT_EXISTS , res);
-    }*/
+    }
 
-    /*@Test
+    @Test
     public void similarUserTest() {
 
         ReturnValue res;
@@ -400,7 +400,7 @@ public class BasicAPITests extends AbstractTest {
         ArrayList<Integer> a5 = new ArrayList<Integer>();
         a5 = Solution.getPlaylistRecommendation(5);
         assertEquals(3, a5.get(0).intValue()); // 3, 4
-    }*/
+    }
 
     @Test
     public void topCountryTest() {
@@ -559,28 +559,30 @@ public class BasicAPITests extends AbstractTest {
         res = Solution.addUser(u4);
         assertEquals(OK, res);
 
-        ArrayList<Integer> a1 = new ArrayList<Integer>();
-        a1 = Solution.getTopCountryPlaylists(1);
+        ArrayList<Integer> a1 = Solution.getTopCountryPlaylists(1);
         assertEquals(4, a1.size()); // 2, 3, 1, 5
-        assertEquals(4, a1.get(0).intValue()); // 2, 3, 1, 5
-        assertEquals(4, a1.get(4).intValue()); // 2, 3, 1, 5
+        assertEquals(2, a1.get(0).intValue()); // 2, 3, 1, 5
+        assertEquals(3, a1.get(1).intValue()); // 2, 3, 1, 5
+        assertEquals(1, a1.get(2).intValue()); // 2, 3, 1, 5
+        assertEquals(5, a1.get(3).intValue()); // 2, 3, 1, 5
 
-
-
-        ArrayList<Integer> a2 = new ArrayList<Integer>();
-        a2 = Solution.getTopCountryPlaylists(2);
+        Solution.removeSongFromPlaylist(3, 4);
+        ArrayList<Integer> a2 = Solution.getTopCountryPlaylists(2);
         assertEquals(2, a2.get(0).intValue()); // 2, 3, 1
+        assertEquals(3, a2.get(1).intValue()); // 2, 3, 1
+        assertEquals(1, a2.get(2).intValue()); // 2, 3, 1
 
-        ArrayList<Integer> a3 = new ArrayList<Integer>();
-        a3 = Solution.getTopCountryPlaylists(3);
+        Solution.addSongToPlaylist(3, 4);
+        ArrayList<Integer> a3 = Solution.getTopCountryPlaylists(3);
         assertEquals(2, a3.get(0).intValue()); // 2, 4, 3
+        assertEquals(4, a3.get(1).intValue()); // 2, 4, 3
+        assertEquals(3, a3.get(2).intValue()); // 2, 4, 3
 
-        ArrayList<Integer> a4 = new ArrayList<Integer>();
-        a4 = Solution.getTopCountryPlaylists(4);
+        ArrayList<Integer> a4 = Solution.getTopCountryPlaylists(4);
         assertEquals(0, a4.size()); // nothing, user 4 is not premium
     }
 
-    /*@Test
+    @Test
     public void topGenreTest() {
 
         ReturnValue res;
@@ -746,7 +748,7 @@ public class BasicAPITests extends AbstractTest {
         a3 = Solution.getSongsRecommendationByGenre(3, "g2");
         assertEquals(3, a3.get(0).intValue());
 
-    }*/
+    }
 
 }
 

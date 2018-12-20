@@ -63,7 +63,7 @@ public class Solution {
      * - playlist (Playlist Entity)
      * - follow (Relation, User - Playlist)
      * - inPlaylist (Relation, Song - Playlist)
-     * 
+     *
      * And views:
      * - CountPlaylistSongs(count)
      * - SumPlaylistPlayCount(sum, playlistId)
@@ -797,10 +797,9 @@ public class Solution {
     public static ArrayList<Integer> getTopCountryPlaylists(Integer userId) {
         Connection connection = DBConnector.getConnection();
         PreparedStatement statement = prepareStatement(connection,
-                "SELECT P.id FROM " + TABLE_PLAYLIST + " P, SumPlaylistPlayCount PC, " + TABLE_USER + " U, " + TABLE_REL_IN_PLAYLIST + " IP\n" +
-                        "WHERE IP.playlistId = P.id " +
-                            "AND PC.playlistId = IP.playlistId " +
-                            "AND U.country IN (SELECT country FROM CountriesInPlaylist WHERE pid = IP.playlistId) " +
+                "SELECT P.id FROM " + TABLE_PLAYLIST + " P, SumPlaylistPlayCount PC, " + TABLE_USER + " U\n" +
+                        "WHERE PC.playlistId = P.id " +
+                            "AND U.country IN (SELECT country FROM CountriesInPlaylist WHERE pid = P.id) " +
                             "AND U.id = ? AND U.premium = true " +
                         "ORDER BY PC.sum DESC LIMIT 10");
         try {
@@ -810,6 +809,7 @@ public class Solution {
             while (results.next()) resultList.add(results.getInt(1));
             return resultList;
         } catch (SQLException ex) {
+            ex.printStackTrace();
             return new ArrayList<>();
         } finally {
             finish(statement);
